@@ -22,12 +22,27 @@ var last_written_finetune_data = []
 var finetune_visible = false
 var on_finetune_updating = false
 
+// Global object to keep track of button states
+const ds_button_states = {
+    // e.g. 'square': false, 'cross': false, ...
+    sticks: {
+        left: {
+            x: 0,
+            y: 0
+        },
+        right: {
+            x: 0,
+            y: 0
+        }
+    }
+};
 
 // Alphabetical order
 var available_langs = {
     "ar_ar": { "name": "العربية", "file": "ar_ar.json", "direction": "rtl"},
     "bg_bg": { "name": "Български", "file": "bg_bg.json", "direction": "ltr"},
     "cz_cz": { "name": "Čeština", "file": "cz_cz.json", "direction": "ltr"},
+    "da_dk": { "name": "Dansk", "file": "da_dk.json", "direction": "ltr"},
     "de_de": { "name": "Deutsch", "file": "de_de.json", "direction": "ltr"},
     "es_es": { "name": "Español", "file": "es_es.json", "direction": "ltr"},
     "fr_fr": { "name": "Français", "file": "fr_fr.json", "direction": "ltr"},
@@ -236,6 +251,7 @@ async function ds4_calibrate_range_begin() {
     try {
         // Begin
         await device.sendFeatureReport(0x90, alloc_req(0x90, [1,1,2]))
+        await new Promise(r => setTimeout(r, 200));
     
         // Assert
         data = await device.receiveFeatureReport(0x91)
@@ -261,6 +277,7 @@ async function ds4_calibrate_range_end() {
     try {
         // Write
         await device.sendFeatureReport(0x90, alloc_req(0x90, [2,1,2]))
+        await new Promise(r => setTimeout(r, 200));
     
         data = await device.receiveFeatureReport(0x91)
         data2 = await device.receiveFeatureReport(0x92)
@@ -289,6 +306,7 @@ async function ds4_calibrate_sticks_begin() {
     try {
         // Begin
         await device.sendFeatureReport(0x90, alloc_req(0x90, [1,1,1]))
+        await new Promise(r => setTimeout(r, 200));
 
         // Assert
         data = await device.receiveFeatureReport(0x91);
@@ -316,6 +334,7 @@ async function ds4_calibrate_sticks_sample() {
     try {
         // Sample
         await device.sendFeatureReport(0x90, alloc_req(0x90, [3,1,1]))
+        await new Promise(r => setTimeout(r, 200));
 
         // Assert
         data = await device.receiveFeatureReport(0x91);
@@ -342,6 +361,7 @@ async function ds4_calibrate_sticks_end() {
     try {
         // Write
         await device.sendFeatureReport(0x90, alloc_req(0x90, [2,1,1]))
+        await new Promise(r => setTimeout(r, 200));
 
         data = await device.receiveFeatureReport(0x91);
         data2 = await device.receiveFeatureReport(0x92);
@@ -371,6 +391,7 @@ async function ds4_calibrate_sticks() {
     
         // Begin
         await device.sendFeatureReport(0x90, alloc_req(0x90, [1,1,1]))
+        await new Promise(r => setTimeout(r, 200));
     
         // Assert
         let data = await device.receiveFeatureReport(0x91);
@@ -384,11 +405,12 @@ async function ds4_calibrate_sticks() {
         }
     
         set_progress(10);
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 200));
     
         for(var i=0;i<3;i++) {
             // Sample
             await device.sendFeatureReport(0x90, alloc_req(0x90, [3,1,1]))
+            await new Promise(r => setTimeout(r, 200));
     
             // Assert
             let data = await device.receiveFeatureReport(0x91);
@@ -407,6 +429,7 @@ async function ds4_calibrate_sticks() {
     
         // Write
         await device.sendFeatureReport(0x90, alloc_req(0x90, [2,1,1]))
+        await new Promise(r => setTimeout(r, 200));
         if(data.getUint32(0, false) != 0x91010101 || data2.getUint32(0, false) != 0x920101FF) {
             let d1 = dec2hex32(data.getUint32(0, false));
             let d2 = dec2hex32(data2.getUint32(0, false));
@@ -559,14 +582,25 @@ function ds5_color(x) {
         '07' : l('Volcanic Red'),
         '08' : l('Sterling Silver'),
         '09' : l('Cobalt Blue'),
+        '10' : l('Chroma Teal'),
+        '11' : l('Chroma Indigo'),
+        '12' : l('Chroma Pearl'),
         '30' : l('30th Anniversary'),
         'Z1' : l('God of War Ragnarok'),
-        'Z3' : l('Astro Bot')
+        'Z2' : l('Spider-Man 2'),
+        'Z3' : l('Astro Bot'),
+        'Z4' : l('Fortnite'),
+        'Z6' : l('The Last of Us')
     };
 
     const colorCode = x.slice(4, 6);
     const colorName = colorMap[colorCode] || 'Unknown';
     return colorName;
+}
+
+// This function should be used only for ASCII strings (not UTF)
+function reverse_str(s) {
+    return s.split('').reverse().join('');
 }
 
 
@@ -604,7 +638,7 @@ async function ds5_info(is_edge) {
         serial_number = await ds5_system_info(1, 19, 17);
         append_info(l("Serial Number"), serial_number, "hw");
         append_info_extra(l("MCU Unique ID"), await ds5_system_info(1, 9, 9, false), "hw");
-        append_info_extra(l("PCBA ID"), await ds5_system_info(1, 17, 14), "hw");
+        append_info_extra(l("PCBA ID"), reverse_str(await ds5_system_info(1, 17, 14)), "hw");
         append_info_extra(l("Battery Barcode"), await ds5_system_info(1, 24, 23), "hw");
         append_info_extra(l("VCM Left Barcode"), await ds5_system_info(1, 26, 16), "hw");
         append_info_extra(l("VCM Right Barcode"), await ds5_system_info(1, 28, 16), "hw");
@@ -1124,14 +1158,32 @@ function welcome_accepted() {
     $("#welcomeModal").modal("hide");
 }
 
+function init_svg_colors() {
+    const lightBlue = '#7ecbff';
+    const midBlue = '#3399cc';
+    const controller = document.getElementById('Controller');
+    set_svg_group_color(controller, lightBlue);
+
+    ['Button_outlines', 'L3_outline', 'R3_outline', 'Trackpad_outline'].forEach(id => {
+        const group = document.getElementById(id);
+        set_svg_group_color(group, midBlue);
+    });
+
+    ['Button_infills', 'L3_infill', 'R3_infill', 'Trackpad_infill'].forEach(id => {
+        const group = document.getElementById(id);
+        set_svg_group_color(group, 'white');
+    });
+}
+
 function gboot() {
     gu = crypto.randomUUID();
     $("#infoshowall").hide();
     window.addEventListener('DOMContentLoaded', function() {
         lang_init();
+        init_svg_colors();
         welcome_modal();
-        $("#checkCircularity").on('change', on_circ_check_change);
-        on_circ_check_change();
+        $("input[name='displayMode']").on('change', on_stick_mode_change);
+        on_stick_mode_change();
     });
 
     if (!("hid" in navigator)) {
@@ -1273,8 +1325,9 @@ function refresh_finetune() {
 }
 
 function ds5_finetune_update_all() {
-    ds5_finetune_update("finetuneStickCanvasL", last_lx, last_ly)
-    ds5_finetune_update("finetuneStickCanvasR", last_rx, last_ry)
+    const { left, right } = ds_button_states.sticks;
+    ds5_finetune_update("finetuneStickCanvasL", left.x, left.y);
+    ds5_finetune_update("finetuneStickCanvasR", right.x, right.y);
 }
 
 function ds5_finetune_update(name, plx, ply) {
@@ -1286,43 +1339,12 @@ function ds5_finetune_update(name, plx, ply) {
     var yb = 15 + sz;
     var w = c.width;
     ctx.clearRect(0, 0, c.width, c.height);
-    ctx.lineWidth = 1;
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
 
-    // Left circle
-    ctx.beginPath();
-    ctx.arc(hb, yb, sz, 0, 2 * Math.PI);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    // Draw stick position with circle
+    draw_stick_position(ctx, hb, yb, sz, plx, ply, { enable_zoom_center: true });
 
-    ctx.strokeStyle = '#aaaaaa';
-    ctx.beginPath();
-    ctx.moveTo(hb-sz, yb);
-    ctx.lineTo(hb+sz, yb);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(hb, yb-sz);
-    ctx.lineTo(hb, yb+sz);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.fillStyle = '#000000';
-    ctx.strokeStyle = '#000000';
-    ctx.beginPath();
-    ctx.arc(hb+plx*sz,yb+ply*sz,4, 0, 2*Math.PI);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(hb, yb);
-    ctx.lineTo(hb+plx*sz, yb+ply*sz);
-    ctx.stroke();
-
-    $("#"+ name + "x-lbl").text(float_to_str(plx));
-    $("#"+ name + "y-lbl").text(float_to_str(ply));
+    $("#"+ name + "x-lbl").text(float_to_str(plx, 3));
+    $("#"+ name + "y-lbl").text(float_to_str(ply, 3));
 }
 
 function finetune_close() {
@@ -1346,7 +1368,7 @@ async function finetune_cancel() {
     finetune_close();
 }
 
-var last_lx = 0, last_ly = 0, last_rx = 0, last_ry = 0;
+
 var ll_updated = false;
 
 var ll_data=new Array(48);
@@ -1354,42 +1376,31 @@ var rr_data=new Array(48);
 var enable_circ_test = false;
 
 function reset_circularity() {
-    for(i=0;i<ll_data.length;i++) ll_data[i] = 0;
-    for(i=0;i<rr_data.length;i++) rr_data[i] = 0;
+    ll_data.fill(0);
+    rr_data.fill(0);
     enable_circ_test = false;
     ll_updated = false;
-    $("#checkCircularity").prop('checked', false);
+    $("#normalMode").prop('checked', true);
     refresh_stick_pos();
 }
 
-function refresh_stick_pos() {
-    var c = document.getElementById("stickCanvas");
-    var ctx = c.getContext("2d");
-    var sz = 60;
-    var hb = 20 + sz;
-    var yb = 15 + sz;
-    var w = c.width;
-    ctx.clearRect(0, 0, c.width, c.height);
+function draw_stick_position(ctx, center_x, center_y, sz, stick_x, stick_y, opts = {}) {
+    const { circularity_data = null, enable_zoom_center = false } = opts;
+
+    // Draw base circle
     ctx.lineWidth = 1;
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#000000';
-
-    // Left circle
     ctx.beginPath();
-    ctx.arc(hb, yb, sz, 0, 2 * Math.PI);
+    ctx.arc(center_x, center_y, sz, 0, 2 * Math.PI);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Right circle
-    ctx.beginPath();
-    ctx.arc(w - hb, yb, sz, 0, 2 * Math.PI);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
+    // Helper function for circularity visualization color
     function cc_to_color(cc) {
-        var dd = Math.sqrt(Math.pow((1.0 - cc), 2));
+        const dd = Math.sqrt(Math.pow((1.0 - cc), 2));
+        let hh;
         if(cc <= 1.0)
             hh = 220 - 220 * Math.min(1.0, Math.max(0, (dd - 0.05)) / 0.1);
         else
@@ -1397,91 +1408,76 @@ function refresh_stick_pos() {
         return hh;
     }
 
-    if(enable_circ_test) {
-        var MAX_N = ll_data.length;
+    // Draw circularity visualization if data provided
+    if (circularity_data?.length > 0) {
+        const MAX_N = circularity_data.length;
 
-        for(i=0;i<MAX_N;i++) {
-            var kd = ll_data[i];
-            var kd1 = ll_data[(i+1) % ll_data.length];
+        for(let i = 0; i < MAX_N; i++) {
+            const kd = circularity_data[i];
+            const kd1 = circularity_data[(i+1) % circularity_data.length];
             if (kd === undefined || kd1 === undefined) continue;
-            var ka = i * Math.PI * 2 / MAX_N;
-            var ka1 = ((i+1)%MAX_N) * 2 * Math.PI / MAX_N;
+            const ka = i * Math.PI * 2 / MAX_N;
+            const ka1 = ((i+1)%MAX_N) * 2 * Math.PI / MAX_N;
 
-            var kx = Math.cos(ka) * kd;
-            var ky = Math.sin(ka) * kd;
-            var kx1 = Math.cos(ka1) * kd1;
-            var ky1 = Math.sin(ka1) * kd1;
+            const kx = Math.cos(ka) * kd;
+            const ky = Math.sin(ka) * kd;
+            const kx1 = Math.cos(ka1) * kd1;
+            const ky1 = Math.sin(ka1) * kd1;
 
             ctx.beginPath();
-            ctx.moveTo(hb, yb);
-            ctx.lineTo(hb+kx*sz, yb+ky*sz);
-            ctx.lineTo(hb+kx1*sz, yb+ky1*sz);
-            ctx.lineTo(hb, yb);
+            ctx.moveTo(center_x, center_y);
+            ctx.lineTo(center_x+kx*sz, center_y+ky*sz);
+            ctx.lineTo(center_x+kx1*sz, center_y+ky1*sz);
+            ctx.lineTo(center_x, center_y);
             ctx.closePath();
 
-            var cc = (kd + kd1) / 2;
-            var hh = cc_to_color(cc);
-            ctx.fillStyle = 'hsla(' + parseInt(hh) + ', 100%, 50%, 0.5)';
-            ctx.fill();
-        }
-
-        for(i=0;i<MAX_N;i++) {
-            var kd = rr_data[i];
-            var kd1 = rr_data[(i+1) % rr_data.length];
-            if (kd === undefined || kd1 === undefined) continue;
-            var ka = i * Math.PI * 2 / MAX_N;
-            var ka1 = ((i+1)%MAX_N) * 2 * Math.PI / MAX_N;
-
-            var kx = Math.cos(ka) * kd;
-            var ky = Math.sin(ka) * kd;
-            var kx1 = Math.cos(ka1) * kd1;
-            var ky1 = Math.sin(ka1) * kd1;
-
-            ctx.beginPath();
-            ctx.moveTo(w-hb, yb);
-            ctx.lineTo(w-hb+kx*sz, yb+ky*sz);
-            ctx.lineTo(w-hb+kx1*sz, yb+ky1*sz);
-            ctx.lineTo(w-hb, yb);
-            ctx.closePath();
-
-            var cc = (kd + kd1) / 2;
-            var hh = cc_to_color(cc);
+            const cc = (kd + kd1) / 2;
+            const hh = cc_to_color(cc);
             ctx.fillStyle = 'hsla(' + parseInt(hh) + ', 100%, 50%, 0.5)';
             ctx.fill();
         }
     }
 
+    // Draw crosshairs
     ctx.strokeStyle = '#aaaaaa';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(hb-sz, yb);
-    ctx.lineTo(hb+sz, yb);
+    ctx.moveTo(center_x-sz, center_y);
+    ctx.lineTo(center_x+sz, center_y);
     ctx.closePath();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(w-hb-sz, yb);
-    ctx.lineTo(w-hb+sz, yb);
+    ctx.moveTo(center_x, center_y-sz);
+    ctx.lineTo(center_x, center_y+sz);
     ctx.closePath();
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(hb, yb-sz);
-    ctx.lineTo(hb, yb+sz);
-    ctx.closePath();
-    ctx.stroke();
+    // Apply center zoom transformation if enabled
+    let display_x = stick_x;
+    let display_y = stick_y;
+    if (enable_zoom_center) {
+        const transformed = apply_center_zoom(stick_x, stick_y);
+        display_x = transformed.x;
+        display_y = transformed.y;
 
-    ctx.beginPath();
-    ctx.moveTo(w-hb, yb-sz);
-    ctx.lineTo(w-hb, yb+sz);
-    ctx.closePath();
-    ctx.stroke();
+        // Draw light gray circle at 50% radius to show border of zoomed center
+        ctx.strokeStyle = '#d3d3d3'; // light gray
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(center_x, center_y, sz * 0.5, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
 
-    var plx = last_lx;
-    var ply = last_ly;
-    var prx = last_rx;
-    var pry = last_ry;
+    // ctx.beginPath();
+    // ctx.moveTo(w-hb, yb-sz);
+    // ctx.lineTo(w-hb, yb+sz);
+    // ctx.closePath();
+    // ctx.stroke();
 
-    if(enable_circ_test) {
+    const { left: { x: plx, y: ply }, right: { x: prx, y: pry } } = ds_button_states.sticks;
+    if(enable_circ_test && circularity_data?.length > 0) {
+        const MAX_N = circularity_data.length;
         var pld = Math.sqrt(plx*plx + ply*ply);
         var pla = (parseInt(Math.round(Math.atan2(ply, plx) * MAX_N / 2.0 / Math.PI)) + MAX_N) % MAX_N;
         var old = ll_data[pla];
@@ -1497,62 +1493,157 @@ function refresh_stick_pos() {
 
     ctx.fillStyle = '#000000';
     ctx.strokeStyle = '#000000';
+
+    // Draw stick line with variable thickness
+    // Calculate distance from center
+    const stick_distance = Math.sqrt(display_x*display_x + display_y*display_y);
+    const boundary_radius = 0.5; // 50% radius
+
+    // Determine if we need to draw a two-segment line
+    const use_two_segments = enable_zoom_center && stick_distance > boundary_radius;
+    if (use_two_segments) {
+        // Calculate boundary point
+        const boundary_x = (display_x / stick_distance) * boundary_radius;
+        const boundary_y = (display_y / stick_distance) * boundary_radius;
+
+        // First segment: thicker line from center to boundary
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(center_x, center_y);
+        ctx.lineTo(center_x + boundary_x*sz, center_y + boundary_y*sz);
+        ctx.stroke();
+
+        // Second segment: thinner line from boundary to stick position
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(center_x + boundary_x*sz, center_y + boundary_y*sz);
+        ctx.lineTo(center_x + display_x*sz, center_y + display_y*sz);
+        ctx.stroke();
+    } else {
+        // Single line from center to stick position
+        ctx.lineWidth = enable_zoom_center ? 3 : 1;
+        ctx.beginPath();
+        ctx.moveTo(center_x, center_y);
+        ctx.lineTo(center_x + display_x*sz, center_y + display_y*sz);
+        ctx.stroke();
+    }
+
+    // Draw filled circle at stick position
     ctx.beginPath();
-    ctx.arc(hb+plx*sz,yb+ply*sz,4, 0, 2*Math.PI);
+    ctx.arc(center_x+display_x*sz, center_y+display_y*sz, 3, 0, 2*Math.PI);
     ctx.fill();
+}
 
-    ctx.beginPath();
-    ctx.moveTo(hb, yb);
-    ctx.lineTo(hb+plx*sz, yb+ply*sz);
-    ctx.stroke();
+function refresh_stick_pos() {
+    const c = document.getElementById("stickCanvas");
+    const ctx = c.getContext("2d");
+    const sz = 60;
+    const hb = 20 + sz;
+    const yb = 15 + sz;
+    const w = c.width;
+    ctx.clearRect(0, 0, c.width, c.height);
 
-    ctx.beginPath();
-    ctx.arc(w-hb+prx*sz, yb+pry*sz,4, 0, 2*Math.PI);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(w-hb, yb);
-    ctx.lineTo(w-hb+prx*sz, yb+pry*sz);
-    ctx.stroke();
-
-    var lbl = "", lbx = "";
-    $("#lx-lbl").text(float_to_str(plx));
-    $("#ly-lbl").text(float_to_str(ply));
-    $("#rx-lbl").text(float_to_str(prx));
-    $("#ry-lbl").text(float_to_str(pry));
+    const { left: { x: plx, y: ply }, right: { x: prx, y: pry } } = ds_button_states.sticks;
 
     if(enable_circ_test) {
-        var ofl = 0, ofr = 0, lcounter = 0, rcounter = 0;
-        ofl = 0; ofr = 0;
-        for (i=0;i<ll_data.length;i++) 
-            if(ll_data[i] > 0.2) {
-                lcounter += 1;
-                ofl += Math.pow(ll_data[i] - 1, 2);
-            }
-        for (i=0;i<rr_data.length;i++) {
-            if(rr_data[i] > 0.2) {
-                rcounter += 1;
-                ofr += Math.pow(rr_data[i] - 1, 2);
-            }
-        }
-        if(lcounter > 0)
-            ofl = Math.sqrt(ofl / lcounter) * 100;
-        if(rcounter > 0)
-            ofr = Math.sqrt(ofr / rcounter) * 100;
+        [[plx, ply, ll_data], [prx, pry, rr_data]].forEach(([px, py, circularity_data]) => {
+            const MAX_N = circularity_data.length;
+            const pa = (parseInt(Math.round(Math.atan2(py, px) * MAX_N / 2.0 / Math.PI)) + MAX_N) % MAX_N;
+            const pd = Math.sqrt(px*px + py*py);
+            const old = circularity_data[pa] ?? 0;
+            circularity_data[pa] = Math.max(old, pd);
+        });
+    }
+
+    const enable_zoom_center = center_zoom_checked();
+    // Draw left stick
+    draw_stick_position(ctx, hb, yb, sz, plx, ply, {
+        circularity_data: enable_circ_test ? ll_data : null,
+        enable_zoom_center,
+    });
+
+    // Draw right stick
+    draw_stick_position(ctx, w-hb, yb, sz, prx, pry, {
+        circularity_data: enable_circ_test ? rr_data : null,
+        enable_zoom_center,
+    });
+
+    const precision = enable_zoom_center ? 3 : 2;
+    $("#lx-lbl").text(float_to_str(plx, precision));
+    $("#ly-lbl").text(float_to_str(ply, precision));
+    $("#rx-lbl").text(float_to_str(prx, precision));
+    $("#ry-lbl").text(float_to_str(pry, precision));
+
+    if(enable_circ_test) {
+        const olf = ll_data.reduce((acc, val) => val > 0.2 ? acc + Math.pow(val - 1, 2) : acc, 0);
+        const lcounter = ll_data.filter(val => val > 0.2).length;
+        const ofl = lcounter > 0 ? Math.sqrt(olf / lcounter) * 100 : 0;
+
+        const orf = rr_data.reduce((acc, val) => val > 0.2 ? acc + Math.pow(val - 1, 2) : acc, 0);
+        const rcounter = rr_data.filter(val => val > 0.2).length;
+        const ofr = rcounter > 0 ? Math.sqrt(orf / rcounter) * 100 : 0;
 
         el = ofl.toFixed(2) + "%";
         er = ofr.toFixed(2) + "%";
         $("#el-lbl").text(el);
         $("#er-lbl").text(er);
     }
+
+    // Move L3 and R3 SVG elements according to stick position
+    try {
+        // These values are tuned for the SVG's coordinate system and visual effect
+        const max_stick_offset = 25;
+        // L3 center in SVG coordinates (from path: cx=295.63, cy=461.03)
+        const l3_cx = 295.63, l3_cy = 461.03;
+        // R3 center in SVG coordinates (from path: cx=662.06, cy=419.78)
+        const r3_cx = 662.06, r3_cy = 419.78;
+
+        const l3_x = l3_cx + plx * max_stick_offset;
+        const l3_y = l3_cy + ply * max_stick_offset;
+        const l3_group = document.querySelector('g#L3');
+        l3_group?.setAttribute('transform', `translate(${l3_x - l3_cx},${l3_y - l3_cy}) scale(0.70)`);
+
+        const r3_x = r3_cx + prx * max_stick_offset;
+        const r3_y = r3_cy + pry * max_stick_offset;
+        const r3_group = document.querySelector('g#R3');
+        r3_group?.setAttribute('transform', `translate(${r3_x - r3_cx},${r3_y - r3_cy}) scale(0.70)`);
+    } catch (e) {
+        // Fail silently if SVG not present
+    }
 }
 
-function circ_checked() { return $("#checkCircularity").is(':checked') }
+function circ_checked() { return $("#checkCircularityMode").is(':checked') }
+function center_zoom_checked() { return $("#centerZoomMode").is(':checked') }
 
-function on_circ_check_change() {
+function apply_center_zoom(x, y) {
+    // Calculate distance from center
+    const distance = Math.sqrt(x * x + y * y);
+
+    // If distance is 0, return original values
+    if (distance === 0) {
+        return { x, y};
+    }
+
+    // Calculate angle
+    const angle = Math.atan2(y, x);
+
+    // Apply center zoom transformation
+    const new_distance =
+        distance <= 0.05
+        ? (distance / 0.05) * 0.5 // 0 to 0.05 maps to 0 to 0.5 (half the radius)
+        : 0.5 + ((distance - 0.05) / 0.95) * 0.5 // 0.05 to 1.0 maps to 0.5 to 1.0 (other half)
+
+    // Convert back to x, y coordinates
+    return {
+        x: Math.cos(angle) * new_distance,
+        y: Math.sin(angle) * new_distance
+    };
+}
+
+function on_stick_mode_change() {
     enable_circ_test = circ_checked();
-    for(i=0;i<ll_data.length;i++) ll_data[i] = 0;
-    for(i=0;i<rr_data.length;i++) rr_data[i] = 0;
+    ll_data.fill(0);
+    rr_data.fill(0);
 
     if(enable_circ_test) {
         $("#circ-data").show();
@@ -1562,9 +1653,9 @@ function on_circ_check_change() {
     refresh_stick_pos();
 }
 
-function float_to_str(f) {
-    if(f < 0.004 && f >= -0.004) return "+0.00";
-    return (f<0?"":"+") + f.toFixed(2);
+function float_to_str(f, precision = 2) {
+    if(precision <=2 && f < 0.004 && f >= -0.004) return "+0.00";
+    return (f<0?"":"+") + f.toFixed(precision);
 }
 
 var on_delay = false;
@@ -1629,9 +1720,9 @@ function update_nvs_changes_status(new_value) {
     has_changes_to_write = new_value;
 }
 
-function update_battery_status(bat_capacity, cable_connected, is_charging, is_error) {
-    var bat_txt = bat_percent_to_text(bat_capacity, is_charging);
-    var can_use_tool = (bat_capacity >= 30 && cable_connected && !is_error); // is this even being used?
+function update_battery_status({bat_capacity, cable_connected, is_charging, is_error}) {
+    const bat_txt = bat_percent_to_text(bat_capacity, is_charging);
+    const can_use_tool = (bat_capacity >= 30 && cable_connected && !is_error); // is this even being used?
 
     if(bat_txt != last_bat_txt) {
         $("#d-bat").html(bat_txt);
@@ -1639,108 +1730,322 @@ function update_battery_status(bat_capacity, cable_connected, is_charging, is_er
     }
 }
 
-function process_ds4_input(data) {
-    var lx = data.data.getUint8(0);
-    var ly = data.data.getUint8(1);
-    var rx = data.data.getUint8(2);
-    var ry = data.data.getUint8(3);
+const DS4_BUTTON_MAP = [
+    { name: 'up', byte: 4, mask: 0x0 }, // Dpad handled separately
+    { name: 'right', byte: 4, mask: 0x1 },
+    { name: 'down', byte: 4, mask: 0x2 },
+    { name: 'left', byte: 4, mask: 0x3 },
+    { name: 'square', byte: 4, mask: 0x10, svg: 'Square' },
+    { name: 'cross', byte: 4, mask: 0x20, svg: 'Cross' },
+    { name: 'circle', byte: 4, mask: 0x40, svg: 'Circle' },
+    { name: 'triangle', byte: 4, mask: 0x80, svg: 'Triangle' },
+    { name: 'l1', byte: 5, mask: 0x01, svg: 'L1' },
+    { name: 'l2', byte: 5, mask: 0x04, svg: 'L2' }, // analog handled separately
+    { name: 'r1', byte: 5, mask: 0x02, svg: 'R1' },
+    { name: 'r2', byte: 5, mask: 0x08, svg: 'R2' }, // analog handled separately
+    { name: 'share', byte: 5, mask: 0x10, svg: 'Create' },
+    { name: 'options', byte: 5, mask: 0x20, svg: 'Options' },
+    { name: 'l3', byte: 5, mask: 0x40, svg: 'L3' },
+    { name: 'r3', byte: 5, mask: 0x80, svg: 'R3' },
+    { name: 'ps', byte: 6, mask: 0x01, svg: 'PS' },
+    { name: 'touchpad', byte: 6, mask: 0x02, svg: 'Trackpad' },
+    // No mute button on DS4
+];
 
-    var new_lx = Math.round((lx - 127.5) / 128 * 100) / 100;
-    var new_ly = Math.round((ly - 127.5) / 128 * 100) / 100;
-    var new_rx = Math.round((rx - 127.5) / 128 * 100) / 100;
-    var new_ry = Math.round((ry - 127.5) / 128 * 100) / 100;
+const DS5_BUTTON_MAP = [
+    { name: 'up', byte: 7, mask: 0x0 }, // Dpad handled separately
+    { name: 'right', byte: 7, mask: 0x1 },
+    { name: 'down', byte: 7, mask: 0x2 },
+    { name: 'left', byte: 7, mask: 0x3 },
+    { name: 'square', byte: 7, mask: 0x10, svg: 'Square' },
+    { name: 'cross', byte: 7, mask: 0x20, svg: 'Cross' },
+    { name: 'circle', byte: 7, mask: 0x40, svg: 'Circle' },
+    { name: 'triangle', byte: 7, mask: 0x80, svg: 'Triangle' },
+    { name: 'l1', byte: 8, mask: 0x01, svg: 'L1' },
+    { name: 'l2', byte: 4, mask: 0xff }, // analog handled separately
+    { name: 'r1', byte: 8, mask: 0x02, svg: 'R1' },
+    { name: 'r2', byte: 5, mask: 0xff }, // analog handled separately
+    { name: 'create', byte: 8, mask: 0x10, svg: 'Create' },
+    { name: 'options', byte: 8, mask: 0x20, svg: 'Options' },
+    { name: 'l3', byte: 8, mask: 0x40, svg: 'L3' },
+    { name: 'r3', byte: 8, mask: 0x80, svg: 'R3' },
+    { name: 'ps', byte: 9, mask: 0x01, svg: 'PS' },
+    { name: 'touchpad', byte: 9, mask: 0x02, svg: 'Trackpad' },
+    { name: 'mute', byte: 9, mask: 0x04, svg: 'Mute' },
+];
 
-    if(last_lx != new_lx || last_ly != new_ly || last_rx != new_rx || last_ry != new_ry) {
-        last_lx = new_lx;
-        last_ly = new_ly;
-        last_rx = new_rx;
-        last_ry = new_ry;
-        ll_updated = true;
-        refresh_sticks();
-    }
-
-    // Read battery
-    var bat = data.data.getUint8(29);
-    var bat_data = bat & 0x0f;
-    var bat_status = (bat >> 4) & 1;
-
-    var bat_capacity = 0;
-    var cable_connected = false;
-    var is_charging = false;
-    var is_error = false;
-
-    if(bat_status == 1) {
-        cable_connected = true;
-        if(bat_data < 10) {
-            bat_capacity = Math.min(bat_data * 10 + 5, 100);
-            is_charging = true;
-        } else if(bat_data == 10) {
-            bat_capacity = 100;
-            is_charging = true;
-        } else if(bat_data == 11) {
-            bat_capacity = 100;
-            // charged
-        } else {
-            // error
-            bat_capacity = 0;
-            is_error = true;
-        }
-    } else {
-        cable_connected = false;
-        if(bat_data < 10) {
-            bat_capacity = bat_data * 10 + 5;
-        } else {
-            bat_capacity = 100;
-        }
-    }
-
-    update_battery_status(bat_capacity, cable_connected, is_charging, is_error);
+function sticksChanged(current, newValues) {
+    return current.left.x !== newValues.left.x || current.left.y !== newValues.left.y ||
+           current.right.x !== newValues.right.x || current.right.y !== newValues.right.y;
 }
 
-function process_ds_input(data) {
-    var lx = data.data.getUint8(0);
-    var ly = data.data.getUint8(1);
-    var rx = data.data.getUint8(2);
-    var ry = data.data.getUint8(3);
+// Generic button processing for DS4/DS5
+function record_ds_button_states(data, BUTTON_MAP, dpad_byte, l2_analog_byte, r2_analog_byte) {
+    if (!data) return {};
 
-    var new_lx = Math.round((lx - 127.5) / 128 * 100) / 100;
-    var new_ly = Math.round((ly - 127.5) / 128 * 100) / 100;
-    var new_rx = Math.round((rx - 127.5) / 128 * 100) / 100;
-    var new_ry = Math.round((ry - 127.5) / 128 * 100) / 100;
+    const changes = {};
 
-    if(last_lx != new_lx || last_ly != new_ly || last_rx != new_rx || last_ry != new_ry) {
-        last_lx = new_lx;
-        last_ly = new_ly;
-        last_rx = new_rx;
-        last_ry = new_ry;
+    // Stick positions (always at bytes 0-3)
+    const [new_lx, new_ly, new_rx, new_ry] = [0, 1, 2, 3]
+        .map(i => data.getUint8(i))
+        .map(v => Math.round((v - 127.5) / 128 * 100) / 100);
+
+    const newSticks = {
+        left: { x: new_lx, y: new_ly },
+        right: { x: new_rx, y: new_ry }
+    };
+
+    if (sticksChanged(ds_button_states.sticks, newSticks)) {
+        ds_button_states.sticks = newSticks;
+        changes.sticks = newSticks;
         ll_updated = true;
-        refresh_sticks();
+    }
+
+    // L2/R2 analog values
+    [
+        ['l2', l2_analog_byte],
+        ['r2', r2_analog_byte]
+    ].forEach(([name, byte]) => {
+        const val = data.getUint8(byte);
+        const key = name + '_analog';
+        if (val !== ds_button_states[key]) {
+            ds_button_states[key] = val;
+            changes[key] = val;
+        }
+    });
+
+    // Dpad is a 4-bit hat value
+    const hat = data.getUint8(dpad_byte) & 0x0F;
+    const dpad_map = {
+        up:    (hat === 0 || hat === 1 || hat === 7),
+        right: (hat === 1 || hat === 2 || hat === 3),
+        down:  (hat === 3 || hat === 4 || hat === 5),
+        left:  (hat === 5 || hat === 6 || hat === 7)
+    };
+    for (let dir of ['up', 'right', 'down', 'left']) {
+        const pressed = dpad_map[dir];
+        if (ds_button_states[dir] !== pressed) {
+            ds_button_states[dir] = pressed;
+            changes[dir] = pressed;
+        }
+    }
+
+    // Other buttons
+    for (let btn of BUTTON_MAP) {
+        if (['up', 'right', 'down', 'left'].includes(btn.name)) continue; // Dpad handled above
+        const pressed = (data.getUint8(btn.byte) & btn.mask) !== 0;
+        if (ds_button_states[btn.name] !== pressed) {
+            ds_button_states[btn.name] = pressed;
+            changes[btn.name] = pressed;
+        }
+    }
+
+    return changes;
+}
+
+function update_stick_graphics(changes, {is_ds5}) {
+    if (!changes || !changes.sticks) return;
+
+    refresh_sticks();
+    if (is_ds5) {
         refresh_finetune();
     }
+}
 
-    var bat = data.data.getUint8(52);
-    var bat_charge = bat & 0x0f;
-    var bat_status = bat >> 4;
+function update_ds_button_svg(changes, BUTTON_MAP) {
+    if (!changes || Object.keys(changes).length === 0) return;
 
-    var bat_capacity = 0;
-    var cable_connected = false;
-    var is_charging = false;
-    var is_error = false;
+    const pressedColor = '#1a237e'; // pleasing dark blue
 
-    if(bat_status == 0) {
-        bat_capacity = Math.min(bat_charge * 10 + 5, 100);
-    } else if(bat_status == 1) {
-        bat_capacity = Math.min(bat_charge * 10 + 5, 100);
-        is_charging = true;
-        cable_connected = true;
-    } else if(bat_status == 2) {
-        bat_capacity = 100;
-        cable_connected = true;
-    } else {
-        is_error = true;
+    // Update L2/R2 analog infill
+    ['l2', 'r2'].forEach(name => {
+        const key = name + '_analog';
+        if (changes.hasOwnProperty(key)) {
+            const val = changes[key];
+            const t = val / 255;
+            const color = lerp_color('#ffffff', pressedColor, t);
+            const svg = name.toUpperCase() + '_infill';
+            const infill = document.getElementById(svg);
+            set_svg_group_color(infill, color);
+        }
+    });
+
+    // Update dpad buttons
+    for (let dir of ['up', 'right', 'down', 'left']) {
+        if (changes.hasOwnProperty(dir)) {
+            const pressed = changes[dir];
+            const group = document.getElementById(dir.charAt(0).toUpperCase() + dir.slice(1) + '_infill');
+            set_svg_group_color(group, pressed ? pressedColor : 'white');
+        }
     }
 
-    update_battery_status(bat_capacity, cable_connected, is_charging, is_error);
+    // Update other buttons
+    for (let btn of BUTTON_MAP) {
+        if (['up', 'right', 'down', 'left'].includes(btn.name)) continue; // Dpad handled above
+        if (changes.hasOwnProperty(btn.name) && btn.svg) {
+            const pressed = changes[btn.name];
+            const group = document.getElementById(btn.svg + '_infill');
+            set_svg_group_color(group, pressed ? pressedColor : 'white');
+        }
+    }
+}
+
+function set_svg_group_color(group, color) {
+    if (group) {
+        let elements = group.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon');
+        elements.forEach(el => {
+            // Set up a smooth transition for fill and stroke if not already set
+            if (!el.style.transition) {
+                el.style.transition = 'fill 0.10s, stroke 0.10s';
+            }
+            el.setAttribute('fill', color);
+            el.setAttribute('stroke', color);
+        });
+    }
+}
+
+// --- Touchpad overlay helpers ---
+function parse_touch_points(data, offset) {
+    // Returns array of up to 2 points: {active, id, x, y}
+    const points = [];
+    for (let i = 0; i < 2; i++) {
+        const base = offset + i * 4;
+        const arr = [];
+        for (let j = 0; j < 4; j++) arr.push(data.getUint8(base + j));
+        const b0 = data.getUint8(base);
+        const active = (b0 & 0x80) === 0; // 0 = finger down, 1 = up
+        const id = b0 & 0x7F;
+        const b1 = data.getUint8(base + 1);
+        const b2 = data.getUint8(base + 2);
+        const b3 = data.getUint8(base + 3);
+        // x: 12 bits, y: 12 bits
+        const x = ((b2 & 0x0F) << 8) | b1;
+        const y = (b3 << 4) | (b2 >> 4);
+        points.push({ active, id, x, y });
+    }
+    return points;
+}
+
+let hasActiveTouchPoints = false;
+let trackpadBbox = undefined;
+
+function update_touchpad_circles(points) {
+    const hasActivePointsNow = points.some(pt => pt.active);
+    if(!hasActivePointsNow && !hasActiveTouchPoints) return;
+
+    // Find the Trackpad_infill group in the SVG
+    const svg = document.getElementById('controller-svg');
+    const trackpad = svg?.querySelector('g#Trackpad_infill');
+    if (!trackpad) return;
+
+    // Remove the previous touch points, if any
+    trackpad.querySelectorAll('circle.ds-touch').forEach(c => c.remove());
+    hasActiveTouchPoints = hasActivePointsNow;
+    trackpadBbox = trackpadBbox ?? trackpad.querySelector('path')?.getBBox();
+
+    // Draw up to 2 circles
+    points.forEach((pt, idx) => {
+        if (!pt.active) return;
+        // Map raw x/y to SVG
+        // DS4/DS5 touchpad is 1920x943 units (raw values)
+        const RAW_W = 1920, RAW_H = 943;
+        const pointRadius = trackpadBbox.width * 0.05;
+        const cx = trackpadBbox.x + pointRadius + (pt.x / RAW_W) * (trackpadBbox.width - pointRadius*2);
+        const cy = trackpadBbox.y + pointRadius + (pt.y / RAW_H) * (trackpadBbox.height - pointRadius*2);
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('class', 'ds-touch');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', pointRadius);
+        circle.setAttribute('fill', idx === 0 ? '#2196f3' : '#e91e63');
+        circle.setAttribute('fill-opacity', '0.5');
+        circle.setAttribute('stroke', '#3399cc');
+        circle.setAttribute('stroke-width', '4');
+        trackpad.appendChild(circle);
+    });
+}
+
+function get_current_main_tab() {
+    const mainTabs = document.getElementById('mainTabs');
+    const activeBtn = mainTabs?.querySelector('.nav-link.active');
+    return activeBtn?.id || 'controller-tab';
+}
+
+function get_current_test_tab() {
+    const testsList = document.getElementById('tests-list');
+    const activeBtn = testsList?.querySelector('.list-group-item.active');
+    return activeBtn?.id || 'haptic-test-tab';
+}
+
+function process_ds4_input({data}) {
+    // Use DS4 map: dpad byte 4, L2 analog 7, R2 analog 8
+    const changes = record_ds_button_states(data, DS4_BUTTON_MAP, 4, 7, 8);
+
+    const current_active_tab = get_current_main_tab();
+    if(current_active_tab === 'controller-tab') {
+        update_stick_graphics(changes, { is_ds5: false });
+        update_ds_button_svg(changes, DS4_BUTTON_MAP);
+
+        const points = parse_touch_points(data, 34);
+        update_touchpad_circles(points);
+    }
+
+    if(current_active_tab === 'tests-tab') {
+        handle_test_input(changes);
+    }
+
+    const batStatus = parse_battery_status(data, { byte: 29, is_ds4: true });
+    update_battery_status(batStatus);
+}
+
+function process_ds_input({data}) {
+    const current_active_tab = get_current_main_tab();
+
+    // Use DS5 map: dpad byte 7, L2 analog 4, R2 analog 5
+    const changes = record_ds_button_states(data, DS5_BUTTON_MAP, 7, 4, 5);
+
+    if(current_active_tab === 'controller-tab') {
+        update_stick_graphics(changes, { is_ds5: true });
+        update_ds_button_svg(changes, DS5_BUTTON_MAP);
+
+        const points = parse_touch_points(data, 32);
+        update_touchpad_circles(points);
+    }
+
+    if(current_active_tab === 'tests-tab') {
+        handle_test_input(changes);
+    }
+
+    const batStatus = parse_battery_status(data, { byte: 52, is_ds4: false });
+    update_battery_status(batStatus);
+}
+
+function handle_test_input(/* changes */) {
+    const current_test_tab = get_current_test_tab();
+
+    // Handle different test tabs
+    switch (current_test_tab) {
+        case 'haptic-test-tab':
+            // Handle L2/R2 for haptic feedback
+            const l2 = ds_button_states.l2_analog || 0;
+            const r2 = ds_button_states.r2_analog || 0;
+            if (l2 || r2) {
+                trigger_haptic_motors(l2, r2);
+            }
+            break;
+
+        // Add more test tabs here as needed
+        default:
+            console.log("Unknown test tab:", current_test_tab);
+            break;
+    }
+}
+
+function set_mute_visibility(show) {
+    const muteOutline = document.getElementById('Mute_outline');
+    const muteInfill = document.getElementById('Mute_infill');
+    if (muteOutline) muteOutline.style.display = show ? '' : 'none';
+    if (muteInfill) muteInfill.style.display = show ? '' : 'none';
 }
 
 async function continue_connection(report) {
@@ -1762,6 +2067,9 @@ async function continue_connection(report) {
         if(device.productId == 0x05c4) {
             $("#infoshowall").hide()
             $("#ds5finetune").hide()
+            // Hide mute button for DS4
+            set_mute_visibility(false);
+            $("#info-tab").hide()
             if(await ds4_info()) {
                 connected = true;
                 mode = 1;
@@ -1771,6 +2079,9 @@ async function continue_connection(report) {
         } else if(device.productId == 0x09cc) {
             $("#infoshowall").hide()
             $("#ds5finetune").hide()
+            // Hide mute button for DS4
+            set_mute_visibility(false);
+            $("#info-tab").hide()
             if(await ds4_info()) {
                 connected = true;
                 mode = 1;
@@ -1780,6 +2091,9 @@ async function continue_connection(report) {
         } else if(device.productId == 0x0ce6) {
             $("#infoshowall").show()
             $("#ds5finetune").show()
+            // Show mute button for DS5
+            set_mute_visibility(true);
+            $("#info-tab").show()
             if(await ds5_info(false)) {
                 connected = true;
                 mode = 2;
@@ -1789,6 +2103,9 @@ async function continue_connection(report) {
         } else if(device.productId == 0x0df2) {
             $("#infoshowall").show()
             $("#ds5finetune").show()
+            // Show mute button for DS5 Edge
+            set_mute_visibility(true);
+            $("#info-tab").show()
             if(await ds5_info(true)) {
                 connected = true;
                 mode = 3;
@@ -1823,6 +2140,11 @@ async function continue_connection(report) {
             $("#resetBtn").show();
             $("#d-nvstatus").text = l("Unknown");
             $("#d-bdaddr").text = l("Unknown");
+            // Always default to the Calibration tab
+            const calibTab = document.getElementById('controller-tab');
+            if (calibTab) {
+                new bootstrap.Tab(calibTab).show();
+            }
         } else {
             show_popup(l("Connected invalid device: ") + l("Error 1"));
             $("#btnconnect").prop("disabled", false);
@@ -1983,7 +2305,7 @@ async function multi_calib_sticks_end() {
         await ds4_calibrate_sticks_end();
     else
         await ds5_calibrate_sticks_end();
-    on_circ_check_change();
+    on_stick_mode_change();
 }
 
 async function multi_calib_sticks_sample() {
@@ -2014,7 +2336,7 @@ async function multi_calibrate_range_on_close() {
         await ds4_calibrate_range_end();
     else
         await ds5_calibrate_range_end();
-    on_circ_check_change();
+    on_stick_mode_change();
 }
 
 
@@ -2093,9 +2415,12 @@ function show_edge_modal() {
     new bootstrap.Modal(document.getElementById('edgeModal'), {}).show()
 }
 
-function show_info_modal() {
+function show_info_tab() {
     la("info_modal");
-    new bootstrap.Modal(document.getElementById('infoModal'), {}).show()
+    const infoTab = document.getElementById('info-tab');
+    if (infoTab) {
+        new bootstrap.Tab(infoTab).show();
+    }
 }
 
 function discord_popup() { 
@@ -2351,4 +2676,138 @@ function lang_translate(target_file, target_lang, target_direction) {
         $("#curLang").html(available_langs[target_lang]["name"]);
     });
 
+}
+
+function lerp_color(a, b, t) {
+    // a, b: hex color strings, t: 0.0-1.0
+    function hex2rgb(hex) {
+        hex = hex.replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+        const num = parseInt(hex, 16);
+        return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    }
+    function rgb2hex(r, g, b) {
+        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    const c1 = hex2rgb(a);
+    const c2 = hex2rgb(b);
+    const c = [
+        Math.round(c1[0] + (c2[0] - c1[0]) * t),
+        Math.round(c1[1] + (c2[1] - c1[1]) * t),
+        Math.round(c1[2] + (c2[2] - c1[2]) * t)
+    ];
+    return rgb2hex(c[0], c[1], c[2]);
+}
+
+let haptic_timeout = undefined;
+let haptic_last_trigger = 0;
+async function trigger_haptic_motors(strong_motor /*left*/, weak_motor /*right*/) {
+    // The DS4 contoller has a strong (left) and a weak (right) motor.
+    // The DS5 emulates the same behavior, but the left and right motors are the same.
+
+    const now = Date.now();
+    if (now - haptic_last_trigger < 200) {
+        return; // Rate limited - ignore calls within 200ms
+    }
+
+    haptic_last_trigger = now;
+
+    try {
+        if (mode == 1) { // DS4
+            const data = new Uint8Array([0x05, 0x00, 0, weak_motor, strong_motor]);
+            await device.sendReport(0x05, data);
+        } else if (mode == 2 || mode == 3) { // DS5 or DS5 Edge
+            const data = new Uint8Array([0x02, 0x00, weak_motor, strong_motor]);
+            await device.sendReport(0x02, data);
+        }
+
+        // Stop rumble after duration
+        clearTimeout(haptic_timeout);
+        haptic_timeout = setTimeout(stop_haptic_motors, 250);
+    } catch(e) {
+        show_popup(l("Error triggering rumble: ") + e);
+    }
+}
+
+async function stop_haptic_motors() {
+    if (mode == 1) { // DS4
+        const data = new Uint8Array([0x05, 0x00, 0, 0, 0]);
+        await device.sendReport(0x05, data);
+    } else if (mode == 2 || mode == 3) { // DS5 or DS5 Edge
+        const data = new Uint8Array([0x02, 0x00, 0, 0]);
+        await device.sendReport(0x02, data);
+    }
+}
+
+function lerp_color(a, b, t) {
+    // a, b: hex color strings, t: 0.0-1.0
+    function hex2rgb(hex) {
+        hex = hex.replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+        const num = parseInt(hex, 16);
+        return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    }
+    function rgb2hex(r, g, b) {
+        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    const c1 = hex2rgb(a);
+    const c2 = hex2rgb(b);
+    const c = [
+        Math.round(c1[0] + (c2[0] - c1[0]) * t),
+        Math.round(c1[1] + (c2[1] - c1[1]) * t),
+        Math.round(c1[2] + (c2[2] - c1[2]) * t)
+    ];
+    return rgb2hex(c[0], c[1], c[2]);
+}
+
+
+function parse_battery_status(data, {byte, is_ds4 = false}) {
+    const bat = data.getUint8(byte);
+    let bat_capacity = 0, cable_connected = false, is_charging = false, is_error = false;
+
+    if (is_ds4) {
+        // DS4: bat_data = low 4 bits, bat_status = bit 4
+        const bat_data = bat & 0x0f;
+        const bat_status = (bat >> 4) & 1;
+        if (bat_status == 1) {
+            cable_connected = true;
+            if (bat_data < 10) {
+                bat_capacity = Math.min(bat_data * 10 + 5, 100);
+                is_charging = true;
+            } else if (bat_data == 10) {
+                bat_capacity = 100;
+                is_charging = true;
+            } else if (bat_data == 11) {
+                bat_capacity = 100;
+                // charged
+            } else {
+                bat_capacity = 0;
+                is_error = true;
+            }
+        } else {
+            cable_connected = false;
+            if (bat_data < 10) {
+                bat_capacity = bat_data * 10 + 5;
+            } else {
+                bat_capacity = 100;
+            }
+        }
+    } else {
+        // DS5: bat_charge = low 4 bits, bat_status = high 4 bits
+        const bat_charge = bat & 0x0f;
+        const bat_status = bat >> 4;
+        if (bat_status == 0) {
+            bat_capacity = Math.min(bat_charge * 10 + 5, 100);
+        } else if (bat_status == 1) {
+            bat_capacity = Math.min(bat_charge * 10 + 5, 100);
+            is_charging = true;
+            cable_connected = true;
+        } else if (bat_status == 2) {
+            bat_capacity = 100;
+            cable_connected = true;
+        } else {
+            is_error = true;
+        }
+    }
+    return { bat_capacity, cable_connected, is_charging, is_error };
 }
