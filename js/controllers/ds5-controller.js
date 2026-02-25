@@ -193,7 +193,9 @@ class DS5OutputStruct {
   }
 }
 
-function ds5_color(x) {
+function ds5_color(serialNumber) {
+  // Color is obtained by the 5th and 6th characters of the serial number
+  // e.g. A12305xxx0000000 -> '05' -> Starlight Blue
   const colorMap = {
     '00': 'White',
     '01': 'Midnight Black',
@@ -214,9 +216,10 @@ function ds5_color(x) {
     'Z3': 'Astro Bot',
     'Z4': 'Fortnite',
     'Z6': 'The Last of Us',
+    'ZB': 'Icon Blue Limited Edition',
   };
 
-  const colorCode = x.slice(4, 6);
+  const colorCode = serialNumber.slice(4, 6);
   const colorName = colorMap[colorCode] || 'Unknown';
   return colorName;
 }
@@ -542,6 +545,10 @@ class DS5Controller extends BaseController {
     if(a == 0x05) return "BDM-030";
     if(a == 0x06) return "BDM-040";
     if(a == 0x07 || a == 0x08) return "BDM-050";
+    // TODO 0x09..0x10?
+    if(a == 0x11) return "BDM-060M";
+    // TODO 0x12?
+    if(a == 0x13) return "BDM-060X";
     return l("Unknown");
   }
 
